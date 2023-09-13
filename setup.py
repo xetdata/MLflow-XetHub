@@ -1,9 +1,11 @@
+from setuptools import setup, find_packages
+
 setup(
     name="mlflow-xet-plugin",
+    packages=find_packages(),
     # Require MLflow as a dependency of the plugin, so that plugin users can simply install
     # the plugin and then immediately use it with MLflow
     install_requires=["mlflow"],
-    ...,
     entry_points={
         "mlflow.tracking_store": "file-plugin=mlflow_xet_plugin.file_store:PluginFileStore",
         "mlflow.artifact_repository": "file-plugin=mlflow_xet_plugin.local_artifact:PluginLocalArtifactRepository",
