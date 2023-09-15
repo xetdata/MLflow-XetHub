@@ -1,16 +1,19 @@
 import os
 import pyxet
 import posixpath
-from mlflow import MlflowException
+from mlflow.exceptions import MlflowException
 from mlflow.entities import FileInfo
 from mlflow.utils.file_utils import relative_path_to_artifact_path
 from mlflow.store.artifact.artifact_repo import ArtifactRepository
 
+
 class XetHubArtifactRepository(ArtifactRepository):
     """Stores artifacts on XetHub."""
 
-    # artifact_uri indicates where all artifacts for a mlflow run are stored.
+    # artifact_uri indicates where all artifacts for a mlflow run are stored, 
+    # e.g. xet://keltonzhang/mlflowArtifacts/0/7574037f153b4cd7819453e8fb466ae9/artifacts
     def __init__(self, artifact_uri, xet_client=None):
+
         super(XetHubArtifactRepository, self).__init__(artifact_uri)
 
         # Allow override for testing
@@ -18,25 +21,15 @@ class XetHubArtifactRepository(ArtifactRepository):
             self.xet_client = xet_client
             return
         
-        self.xet_client = pyxet()
-
-        self.mlflow_endpoint_url = os.environ.get('MLFLOW_ENDPOINT_URL')
-        xet_user = os.environ.get('XET_USER')
-        xet_email = os.environ.get('XET_EMAIL')
-        xet_password = os.environ.get('XET_PASSWORD')
-        assert self.mlflow_endpoint_url, 'please set MLFLOW_ENDPOINT_URL'
-        assert xet_user, 'please set XET_USER'
-        assert xet_email, 'please set XET_EMAIL'
-        assert xet_password, 'please set XET_PASSWORD'
-        
-        self.xet_client.login(xet_user, xet_password, xet_email)
+        self.xet_client = pyxet
 
         # xet_repo is a path in the form of xet://[user]/[repo]
         self.xet_repo = artifact_uri
-        try:
-            self.xet_client.parse_url(self.xet_repo)
-        except Exception as e:
-            return e
+        # try:
+        #     self.xet_client.parse_url(self.xet_repo)
+        # except Exception as e:
+        #     print(f"Error parsing Xet URL {self.xet_repo}: {e}")
+        #     return 
         
         self.is_plugin = True
 
@@ -51,6 +44,7 @@ class XetHubArtifactRepository(ArtifactRepository):
                               artifact.
     """
     def log_artifact(self, local_file, artifact_path=None):
+        dest_path = self.artifact_uri
         if artifact_path:
             dest_path = posixpath.join(dest_path, artifact_path)
         else:
@@ -73,6 +67,7 @@ class XetHubArtifactRepository(ArtifactRepository):
                               artifacts
     """
     def log_artifacts(self, local_dir, artifact_path=None):
+        dest_path = self.artifact_uri
         if artifact_path:
             dest_path = posixpath.join(dest_path, artifact_path)
 
@@ -99,7 +94,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         dest_path = artifact_path
         if path:
             dest_path = posixpath.join(dest_path, path)
-            
+
         infos = []
         dest_path = dest_path + "/" if dest_path else ""
         entries = self.xet_client.fs.ls(dest_path)
@@ -136,4 +131,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         self.xet_client.fs.get(xet_full_path, local_path)
 
     def delete_artifacts(self, artifact_path=None):
-        raise MlflowException('Not implemented yet')
+        commit_msg = "Log artifact %s" % os.path.basename(artifact_path)
+        with self.xet_client.fs.transaction as tr:
+            tr.set_commit_message(commit_msg)
+            self.xet_client.fs.rm(artifact_path)
