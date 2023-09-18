@@ -108,19 +108,22 @@ class XetHubArtifactRepository(ArtifactRepository):
             entries = fs.ls(dest_path)
 
             for entry in entries:
+                entryName = entry["name"]
+                entryType = entry["type"]
+                entrySize = entry["size"]
                 self._verify_listed_entry_contains_artifact_path_prefix(
-                        listed_entry_path=entry, artifact_path=artifact_path)
-                if fs.isdir(entry):
+                        listed_entry_path="xet://"+entryName, artifact_path=artifact_path)
+                if entryType=="file":
+                    # is file
+                    file_path = entryName
+                    file_rel_path = posixpath.relpath(path=file_path, start=artifact_path)
+                    file_size = entrySize
+                    infos.append(FileInfo(file_rel_path, False, file_size))
+                else:
                     # is dir
-                    subdir_path = entry
+                    subdir_path = entryName
                     subdir_rel_path = posixpath.relpath(path=subdir_path, start=artifact_path)
                     infos.append(FileInfo(subdir_rel_path, True, None))
-                else:
-                    # is file
-                    file_path = entry
-                    file_rel_path = posixpath.relpath(path=file_path, start=artifact_path)
-                    file_size = None # to do: get file size with pyxet
-                    infos.append(FileInfo(file_rel_path, False, file_size))
 
         else:
             # the path is a single file
