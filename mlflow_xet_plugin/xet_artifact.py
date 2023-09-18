@@ -52,7 +52,7 @@ class XetHubArtifactRepository(ArtifactRepository):
             dest_path = posixpath.join(self.artifact_uri, os.path.basename(local_file))
             
         # Store file to XetHub
-        fs = pyxet.XetFS()
+        fs = self.xet_client.XetFS()
         commit_msg = "Log artifact %s" % os.path.basename(local_file)
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
@@ -102,22 +102,28 @@ class XetHubArtifactRepository(ArtifactRepository):
 
         infos = []
         dest_path = dest_path + "/" if dest_path else ""
-        entries = self.xet_client.fs.ls(dest_path)
+        fs = self.xet_client.XetFS()
+        if fs.isdir(dest_path):
+            entries = fs.ls(dest_path)
 
-        for entry in entries:
-            self._verify_listed_entry_contains_artifact_path_prefix(
-                    listed_entry_path=entry, artifact_path=artifact_path)
-            if self.xet_client.isdir(entry):
-                # is dir
-                subdir_path = entry
-                subdir_rel_path = posixpath.relpath(path=subdir_path, start=artifact_path)
-                infos.append(FileInfo(subdir_rel_path, True, None))
-            else:
-                # is file
-                file_path = entry
-                file_rel_path = posixpath.relpath(path=file_path, start=artifact_path)
-                file_size = None # to do: get file size with pyxet
-                infos.append(FileInfo(file_rel_path, False, file_size))
+            for entry in entries:
+                self._verify_listed_entry_contains_artifact_path_prefix(
+                        listed_entry_path=entry, artifact_path=artifact_path)
+                if fs.isdir(entry):
+                    # is dir
+                    subdir_path = entry
+                    subdir_rel_path = posixpath.relpath(path=subdir_path, start=artifact_path)
+                    infos.append(FileInfo(subdir_rel_path, True, None))
+                else:
+                    # is file
+                    file_path = entry
+                    file_rel_path = posixpath.relpath(path=file_path, start=artifact_path)
+                    file_size = None # to do: get file size with pyxet
+                    infos.append(FileInfo(file_rel_path, False, file_size))
+
+        else:
+            # the path is a single file
+            return []
 
         return sorted(infos, key=lambda f: f.path)
 
@@ -131,12 +137,14 @@ class XetHubArtifactRepository(ArtifactRepository):
                     artifact_path=artifact_path, entry_path=listed_entry_path))
 
     def _download_file(self, remote_file_path, local_path):
+        fs = self.xet_client.XetFS()
         xet_root_path = self.artifact_uri
         xet_full_path = posixpath.join(xet_root_path, remote_file_path)
-        self.xet_client.fs.get(xet_full_path, local_path)
+        fs.get(xet_full_path, local_path)
 
     def delete_artifacts(self, artifact_path=None):
+        fs = self.xet_client.XetFS()
         commit_msg = "Log artifact %s" % os.path.basename(artifact_path)
-        with self.xet_client.fs.transaction as tr:
+        with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
-            self.xet_client.fs.rm(artifact_path)
+            fs.rm(artifact_path)
