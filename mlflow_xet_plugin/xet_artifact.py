@@ -54,14 +54,15 @@ class XetHubArtifactRepository(ArtifactRepository):
         # Store file to XetHub
         fs = self.xet_client.XetFS()
         commit_msg = "Log artifact %s" % os.path.basename(local_file)
+        print("Logging artifact to XetHub from %s to %s" % (local_file, dest_path))
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
-            print("Logging artifact to XetHub from %s to %s" % (local_file, dest_path))
             # fs.put(local_file, dest_path)
             dest_file = fs.open(dest_path, 'wb')
             src_file = open(local_file, 'rb').read()
             dest_file.write(src_file)
             dest_file.close()
+        print("Logged artifact to XetHub from %s to %s" % (local_file, dest_path))
 
     """
         Log the files in the specified local directory as artifacts, optionally taking
@@ -144,7 +145,9 @@ class XetHubArtifactRepository(ArtifactRepository):
 
     def delete_artifacts(self, artifact_path=None):
         fs = self.xet_client.XetFS()
-        commit_msg = "Log artifact %s" % os.path.basename(artifact_path)
+        commit_msg = "Delete artifact %s" % os.path.basename(artifact_path)
+        print("Deleting artifact from %s" % (artifact_path))
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
             fs.rm(artifact_path)
+        print("Deleted artifact from %s" % (artifact_path))
