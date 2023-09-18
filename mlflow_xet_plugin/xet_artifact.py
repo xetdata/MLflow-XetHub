@@ -44,19 +44,24 @@ class XetHubArtifactRepository(ArtifactRepository):
                               artifact.
     """
     def log_artifact(self, local_file, artifact_path=None):
-        dest_path = self.artifact_uri
+
+        # dest path would be formatted as xet://user/repo/branch/mlflow_experiment_group/mlflow_run_id/artifacts/file
         if artifact_path:
-            dest_path = posixpath.join(dest_path, artifact_path)
+            dest_path = artifact_path
         else:
-            dest_path = posixpath.join(dest_path, os.path.basename(local_file))
+            dest_path = posixpath.join(self.artifact_uri, os.path.basename(local_file))
             
         # Store file to XetHub
         fs = pyxet.XetFS()
         commit_msg = "Log artifact %s" % os.path.basename(local_file)
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
-            fs.cp(local_file, dest_path)
-            fs.end_transaction()
+            print("Logging artifact to XetHub from %s to %s" % (local_file, dest_path))
+            # fs.put(local_file, dest_path)
+            dest_file = fs.open(dest_path, 'wb')
+            src_file = open(local_file, 'rb').read()
+            dest_file.write(src_file)
+            dest_file.close()
 
     """
         Log the files in the specified local directory as artifacts, optionally taking
