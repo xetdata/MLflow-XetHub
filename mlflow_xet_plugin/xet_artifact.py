@@ -57,11 +57,11 @@ class XetHubArtifactRepository(ArtifactRepository):
         print("Logging artifact to XetHub from %s to %s" % (local_file, dest_path))
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
-            # fs.put(local_file, dest_path)
             dest_file = fs.open(dest_path, 'wb')
             src_file = open(local_file, 'rb').read()
             dest_file.write(src_file)
             dest_file.close()
+
         print("Logged artifact to XetHub from %s to %s" % (local_file, dest_path))
 
     """
@@ -97,6 +97,7 @@ class XetHubArtifactRepository(ArtifactRepository):
     """
     def list_artifacts(self, path=None):
         artifact_path = self.artifact_uri
+        print("Listing artifacts of %s" % artifact_path)
         dest_path = artifact_path
         if path:
             dest_path = posixpath.join(dest_path, path)
@@ -140,11 +141,26 @@ class XetHubArtifactRepository(ArtifactRepository):
                 " {entry_path}.".format(
                     artifact_path=artifact_path, entry_path=listed_entry_path))
 
-    def _download_file(self, remote_file_path, local_path):
+    def download_artifacts(self, artifact_path, dst_path=None):
+        
+        if not dst_path:
+            dst_path = "./mlartifacts"
+            
+        trailing_slash = "" if self.artifact_uri.endswith("/") else "/"
+        artifact_path = self.artifact_uri + trailing_slash + artifact_path
+        print(f"Downloading artifacts from {artifact_path} to {dst_path}")
         fs = self.xet_client.XetFS()
-        xet_root_path = self.artifact_uri
-        xet_full_path = posixpath.join(xet_root_path, remote_file_path)
-        fs.get(xet_full_path, local_path)
+        if fs.isdir(artifact_path):
+            fs.get(artifact_path, dst_path, recursive=True)
+        else:
+            fs.get(artifact_path, dst_path)
+
+    def _download_file(self, remote_file_path, local_path):
+        print(f"Downloading file from {remote_file_path} to {local_path}")
+        fs = self.xet_client.XetFS()
+        # xet_root_path = self.artifact_uri
+        xet_full_path = remote_file_path #posixpath.join(xet_root_path, remote_file_path)
+        fs.get(xet_full_path, local_path, recursive=True)
 
     def delete_artifacts(self, artifact_path=None):
         fs = self.xet_client.XetFS()
