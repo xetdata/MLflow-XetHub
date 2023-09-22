@@ -1,15 +1,18 @@
 import os
+import posixpath
+import mock
 import secrets
 import string
 import pyxet
 import mlflow
 import pytest
+from mlflow.utils.file_utils import TempDir
 from mlflow.store.artifact.artifact_repository_registry import get_artifact_repository
 from mlflow_xet_plugin.xet_artifact import XetHubArtifactRepository
 from mlflow import log_artifact, log_artifacts, get_artifact_uri, create_experiment, MlflowClient
 
 from mlflow.entities import (Experiment, Run, RunInfo, RunData, RunTag, Metric,
-                             Param, ExperimentTag, RunStatus, LifecycleStage)
+                             Param, ExperimentTag, RunStatus, LifecycleStage, FileInfo)
 
 @pytest.fixture # run before each test function to which it is applied
 def run():
@@ -55,15 +58,20 @@ def test_user_info():
     token = os.getenv('XET_TEST_TOKEN')
     assert token is not None
 
+    host = os.getenv('XET_ENDPOINT')
+    if host is None:
+        host = 'https://xethub.com'
+
     return {
         "user": user,
         "email": email,
         "token": token,
+        "host": host,
     }
 
 def test_account_login():
     user_info = test_user_info()
-    pyxet.login(user_info['user'], user_info['token'], user_info['email'])
+    pyxet.login(user_info['user'], user_info['token'], user_info['email'], user_info['host'])
     return user_info['user']
 
 # Expect a test repo whose main branch is empty (only .gitattributes)
@@ -207,3 +215,47 @@ def test_delete_artifacts(run):
     except Exception as e:
         assert(False), f"Error deleting artifacts from {artifact_uri}: {e}"
     
+
+@pytest.mark.parametrize("base_uri, download_arg, list_return_val", [
+    ('12345/model', '', ['modelfile']),
+    ('12345/model', '', ['.', 'modelfile']),
+    ('12345', 'model', ['model/modelfile']),
+    ('12345', 'model', ['model', 'model/modelfile']),
+    ('', '12345/model', ['12345/model/modelfile']),
+    ('', '12345/model', ['12345/model', '12345/model/modelfile']),
+])
+def test_download_artifacts_does_not_infinitely_loop(base_uri, download_arg, list_return_val):
+    base_uri = artifact_uri + base_uri
+    def list_artifacts(path):
+        fullpath = posixpath.join(base_uri, path)
+        if fullpath.endswith("model") or fullpath.endswith("model/"):
+            return [FileInfo(item, False, 123) for item in list_return_val]
+        elif fullpath.endswith("12345") or fullpath.endswith("12345/"):
+            return [FileInfo(posixpath.join(path, "model"), True, 0)]
+        else:
+            return []
+
+    with mock.patch.object(XetHubArtifactRepository, "list_artifacts") as list_artifacts_mock:
+        list_artifacts_mock.side_effect = list_artifacts
+        repo = XetHubArtifactRepository(base_uri)
+        repo.download_artifacts(download_arg)
+
+
+@pytest.mark.parametrize("base_uri, download_arg, list_return_val", [
+    ('', '12345/model', ['12345/model', '12345/model/modelfile', '12345/model/emptydir']),
+])
+def test_download_artifacts_handles_empty_dir(base_uri, download_arg, list_return_val):
+    base_uri = artifact_uri + base_uri
+    def list_artifacts(path):
+        if path.endswith("model"):
+            return [FileInfo(item, item.endswith("emptydir"), 123) for item in list_return_val]
+        elif path.endswith("12345") or path.endswith("12345/"):
+            return [FileInfo("12345/model", True, 0)]
+        else:
+            return []
+
+    with mock.patch.object(XetHubArtifactRepository, "list_artifacts") as list_artifacts_mock:
+        list_artifacts_mock.side_effect = list_artifacts
+        repo = XetHubArtifactRepository(base_uri)
+        with TempDir() as tmp:
+            repo.download_artifacts(download_arg, dst_path=tmp.path())
