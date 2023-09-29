@@ -1,6 +1,7 @@
 import os
 import posixpath
 import mock
+import pyxet
 import secrets
 import string
 import pyxet
@@ -20,7 +21,7 @@ def run():
     with mlflow.start_run() as run:
         yield run
 
-def test_user_info():
+def get_user_info():
     user = os.getenv('XET_TEST_USER')
     assert user is not None
     email = os.getenv('XET_TEST_EMAIL')
@@ -45,10 +46,10 @@ def test_user_info():
 #     return user_info['user']
 
 # Expect a test repo whose main branch is empty (only .gitattributes)
-def test_repo():
+def get_repo():
     repo = os.getenv('XET_TEST_REPO')
     assert repo is not None
-    user_info = test_user_info()
+    user_info = get_user_info()
     user = user_info['user']
     assert user is not None
     # set by XET_TEST_REPO
@@ -68,18 +69,18 @@ def new_random_branch_from(repo, src_branch):
     return dest_branch
 
 def xet_repo_mock():
-    repo_url = test_repo()
+    repo_url = get_repo()
     # branch = new_random_branch_from(repo_url, "main")
 
     return repo_url+"/main/"
 
-artifact_uri = xet_repo_mock()
+repo_uri = xet_repo_mock()
 
 def start_mlflow_server_for_xethub():
     import subprocess
 
     # Define the CLI command as a list of strings
-    command = ["mlflow", "ui", "--backend-store-uri", "./mlruns", "--artifacts-destination", artifact_uri, "--default-artifact-root", artifact_uri]
+    command = ["mlflow", "ui", "--backend-store-uri", "./mlruns", "--artifacts-destination", repo_uri, "--default-artifact-root", repo_uri]
 
     # Run the CLI command and capture the output
     try:
@@ -106,20 +107,40 @@ def test_get_artifact_uri(run):
     assert(mlflow.active_run())
     assert(get_artifact_uri()==run.info.artifact_uri)
 
-def test_mlflowClient_list_artifacts(run):
+# def test_artifact_is_dir(run):
+#     artifact_uri = run.info.artifact_uri 
+    
+#     client = MlflowClient()
+#     artifacts = client.is_dir(artifact_uri)
+#     assert(artifacts)
+
+def test_mlflowClient_list_artifacts_and_is_dir(run):
     artifact_uri = run.info.artifact_uri 
     
     client = MlflowClient()
     artifacts = client.list_artifacts(run.info.run_id)
     assert(artifacts)
+    fs = pyxet.XetFS()
+    for artifact in artifacts:
+        if artifact.is_dir:
+            assert(fs.isdir(artifact.path))
+        else:
+            assert(not fs.isdir(artifact.path))
 
-def test_plugin_list_artifacts(run):
+def test_plugin_list_artifacts_and_is_dir(run):
     artifact_uri = run.info.artifact_uri 
     # repo = XetHubArtifactRepository(artifact_uri)
     repository = get_artifact_repository(artifact_uri)
-    assert(repository.list_artifacts(artifact_uri))
+    artifacts = repository.list_artifacts(artifact_uri)
+    assert(artifacts)
+    fs = pyxet.XetFS()
+    for artifact in artifacts:
+        if artifact.is_dir:
+            assert(fs.isdir(artifact.path))
+        else:
+            assert(not fs.isdir(artifact.path))
 
-def test_log_artifacts():
+def test_log_artifacts(run):
     if not os.path.exists("outputs"):
         os.makedirs("outputs")
 
@@ -136,7 +157,7 @@ def test_log_artifacts():
         assert(False), f"Error logging artifacts from {artifact_uri}: {e}"
     
 
-def test_log_artifact():
+def test_log_artifact(run):
     if not os.path.exists("outputs"):
         os.makedirs("outputs")
 
@@ -196,7 +217,7 @@ def test_delete_artifacts(run):
     ('', '12345/model', ['12345/model', '12345/model/modelfile']),
 ])
 def test_download_artifacts_does_not_infinitely_loop(base_uri, download_arg, list_return_val):
-    base_uri = artifact_uri + base_uri
+    base_uri = repo_uri + base_uri
     def list_artifacts(path):
         fullpath = posixpath.join(base_uri, path)
         if fullpath.endswith("model") or fullpath.endswith("model/"):
@@ -216,7 +237,7 @@ def test_download_artifacts_does_not_infinitely_loop(base_uri, download_arg, lis
     ('', '12345/model', ['12345/model', '12345/model/modelfile', '12345/model/emptydir']),
 ])
 def test_download_artifacts_handles_empty_dir(base_uri, download_arg, list_return_val):
-    base_uri = artifact_uri + base_uri
+    base_uri = repo_uri + base_uri
     def list_artifacts(path):
         if path.endswith("model"):
             return [FileInfo(item, item.endswith("emptydir"), 123) for item in list_return_val]
