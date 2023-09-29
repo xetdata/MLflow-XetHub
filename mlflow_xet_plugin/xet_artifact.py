@@ -1,4 +1,5 @@
 import os
+import sys
 import pyxet
 import posixpath
 from mlflow.exceptions import MlflowException
@@ -23,13 +24,9 @@ class XetHubArtifactRepository(ArtifactRepository):
         
         self.xet_client = pyxet
 
-        # xet_repo is a path in the form of xet://[user]/[repo]
-        self.xet_repo = artifact_uri
-        # try:
-        #     self.xet_client.parse_url(self.xet_repo)
-        # except Exception as e:
-        #     print(f"Error parsing Xet URL {self.xet_repo}: {e}")
-        #     return 
+        # artifact_uri is a path in the form of xet://[user]/[repo]
+        if artifact_uri.endswith("/"):
+            self.artifact_uri = artifact_uri[:-1]
         
         self.is_plugin = True
 
@@ -54,7 +51,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         # Store file to XetHub
         fs = self.xet_client.XetFS()
         commit_msg = "Log artifact %s" % os.path.basename(local_file)
-        print("Logging artifact to XetHub from %s to %s" % (local_file, dest_path))
+        sys.stdout.write(f"Logging artifact to XetHub from {local_file} to {dest_path}")
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
             dest_file = fs.open(dest_path, 'wb')
@@ -62,7 +59,7 @@ class XetHubArtifactRepository(ArtifactRepository):
             dest_file.write(src_file)
             dest_file.close()
 
-        print("Logged artifact to XetHub from %s to %s" % (local_file, dest_path))
+        sys.stdout.write(f"Logged artifact to XetHub from {local_file} to {dest_path}")
 
     """
         Log the files in the specified local directory as artifacts, optionally taking
@@ -146,8 +143,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         if not dst_path:
             dst_path = "./mlartifacts"
             
-        trailing_slash = "" if self.artifact_uri.endswith("/") else "/"
-        artifact_path = self.artifact_uri + trailing_slash + artifact_path
+        artifact_path = posixpath.join(self.artifact_uri, artifact_path)
         print(f"Downloading artifacts from {artifact_path} to {dst_path}")
         fs = self.xet_client.XetFS()
         if fs.isdir(artifact_path):
@@ -164,9 +160,23 @@ class XetHubArtifactRepository(ArtifactRepository):
 
     def delete_artifacts(self, artifact_path=None):
         fs = self.xet_client.XetFS()
-        commit_msg = "Delete artifact %s" % os.path.basename(artifact_path)
-        print("Deleting artifact from %s" % (artifact_path))
-        with fs.transaction as tr:
-            tr.set_commit_message(commit_msg)
-            fs.rm(artifact_path)
-        print("Deleted artifact from %s" % (artifact_path))
+        if fs.isdir(artifact_path):
+            commit_msg = "Delete artifacts in %s" % os.path.basename(artifact_path)
+            print("Deleting artifacts from %s" % (artifact_path))
+            with fs.transaction as tr:
+                tr.set_commit_message(commit_msg)
+                cli = self.xet_client.PyxetCLI()
+                cli.rm(artifact_path)
+                # for entry in self.list_artifacts(artifact_path):
+                #     fs.rm(entry)
+            print("Deleted artifacts from %s" % (artifact_path))
+
+        else:
+            commit_msg = "Delete artifact %s" % os.path.basename(artifact_path)
+            print("Deleting artifact %s" % (artifact_path))
+            with fs.transaction as tr:
+                tr.set_commit_message(commit_msg)
+                fs.rm(artifact_path)
+            print("Deleted artifact %s" % (artifact_path))
+
+        
