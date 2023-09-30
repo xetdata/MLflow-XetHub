@@ -12,7 +12,8 @@ class XetHubArtifactRepository(ArtifactRepository):
     """Stores artifacts on XetHub."""
 
     # artifact_uri indicates where all artifacts for a mlflow run are stored, 
-    # e.g. xet://keltonzhang/mlflowArtifacts/0/7574037f153b4cd7819453e8fb466ae9/artifacts
+    # should be in the format of xet://[user]/[repo]/[branch]/[experiment_id]/[run_id]/artifacts
+    # e.g. xet://keltonzhang/mlflowArtifacts/main/0/7574037f153b4cd7819453e8fb466ae9/artifacts
     def __init__(self, artifact_uri, xet_client=None):
 
         super(XetHubArtifactRepository, self).__init__(artifact_uri)
@@ -24,9 +25,15 @@ class XetHubArtifactRepository(ArtifactRepository):
         
         self.xet_client = pyxet
 
-        # artifact_uri is a path in the form of xet://[user]/[repo]
+
+
+        # strip trailing slash as posix join will add slash in between paths
         if artifact_uri.endswith("/"):
             self.artifact_uri = artifact_uri[:-1]
+
+        pathComponents = self.artifact_uri.split("/")
+        if len(pathComponents) < 8:
+            raise Exception("Invalid artifact URI format, check if the artifact destination/root passed to your MLflow server is of the form xet://user/repo/branch")
         
         self.is_plugin = True
 
@@ -51,6 +58,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         # Store file to XetHub
         fs = self.xet_client.XetFS()
         commit_msg = "Log artifact %s" % os.path.basename(local_file)
+
         sys.stdout.write(f"Logging artifact to XetHub from {local_file} to {dest_path}")
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
@@ -139,24 +147,54 @@ class XetHubArtifactRepository(ArtifactRepository):
                     artifact_path=artifact_path, entry_path=listed_entry_path))
 
     def download_artifacts(self, artifact_path, dst_path=None):
-        
-        if not dst_path:
-            dst_path = "./mlartifacts"
-            
-        artifact_path = posixpath.join(self.artifact_uri, artifact_path)
-        print(f"Downloading artifacts from {artifact_path} to {dst_path}")
-        fs = self.xet_client.XetFS()
-        if fs.isdir(artifact_path):
-            fs.get(artifact_path, dst_path, recursive=True)
+        """
+        Artifacts tracked by the plugin already exist on the local filesystem.
+        If ``dst_path`` is ``None``, the absolute filesystem path of the specified artifact is
+        returned. If ``dst_path`` is not ``None``, the local artifact is copied to ``dst_path``.
+
+        :param artifact_path: Relative source path to the desired artifacts.
+        :param dst_path: Absolute path of the local filesystem destination directory to which to
+                         download the specified artifacts. This directory must already exist. If
+                         unspecified, the absolute path of the local artifact will be returned.
+
+        :return: Absolute path of the local filesystem location containing the desired artifacts.
+        """
+        if dst_path:
+            return super().download_artifacts(artifact_path, dst_path)
+        # NOTE: The artifact_path is expected to be in posix format.
+        # Posix paths work fine on windows but just in case we normalize it here.
+        # local_artifact_path = os.path.join(self.artifact_dir, os.path.normpath(artifact_path))
+        # if not os.path.exists(local_artifact_path):
+        #     raise OSError(f"No such file or directory: '{local_artifact_path}'")        
         else:
-            fs.get(artifact_path, dst_path)
+            # if not artifact_path:
+            artifact_path = posixpath.join(self.artifact_uri, artifact_path)
+                # artifact_path = self.artifact_uri
+
+            # artifact_path is of the format xet://user/repo/branch/mlflow_experiment_group/mlflow_run_id/artifacts/file
+            mlflow_subpath = "/".join(artifact_path.split("/")[5:])
+            dst_path = os.path.abspath("./mlruns/"+mlflow_subpath)
+
+            print(f"Downloading artifacts from {artifact_path} to {dst_path}")
+            fs = self.xet_client.XetFS()
+            if fs.isdir(artifact_path):
+                fs.get(artifact_path, dst_path, recursive=True)
+            else:
+                # if fs.isdir(dst_path):
+                #     self._download_file(artifact_path, dst_path+artifact_path)
+                # else:
+                self._download_file(artifact_path, dst_path)
+
+            print(f"Downloaded artifacts from {artifact_path} to {dst_path}")
+            return dst_path
 
     def _download_file(self, remote_file_path, local_path):
         print(f"Downloading file from {remote_file_path} to {local_path}")
         fs = self.xet_client.XetFS()
         # xet_root_path = self.artifact_uri
         xet_full_path = remote_file_path #posixpath.join(xet_root_path, remote_file_path)
-        fs.get(xet_full_path, local_path, recursive=True)
+        fs.get(xet_full_path, local_path)
+        print(f"Downloaded file from {remote_file_path} to {local_path}")
 
     def delete_artifacts(self, artifact_path=None):
         fs = self.xet_client.XetFS()
@@ -170,7 +208,6 @@ class XetHubArtifactRepository(ArtifactRepository):
                 # for entry in self.list_artifacts(artifact_path):
                 #     fs.rm(entry)
             print("Deleted artifacts from %s" % (artifact_path))
-
         else:
             commit_msg = "Delete artifact %s" % os.path.basename(artifact_path)
             print("Deleting artifact %s" % (artifact_path))
