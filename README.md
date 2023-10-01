@@ -13,6 +13,8 @@ pip install .
 ```
 
 ## Authenticate with XetHub  
+If you haven't already, [create an XetHub account](https://xethub.com/assets/docs/getting-started/installation#create-a-xethub-account).
+
 The plugin uses [PyXet](https://github.com/xetdata/pyxet) to access XetHub, so you need to authenticate with XetHub in one of the following two ways.
 ### Option 1: [Log in with Xet CLI](https://xethub.com/assets/docs/getting-started/installation#configure-authentication)
 ```
@@ -29,7 +31,7 @@ export XET_USER_TOKEN = <personal_access_token>
 ### 
 
 ## Create a XetHub repo to store your artifacts
-Go to https://xethub.com/ and create a new repo to store your MLflow artifacts.
+Go to https://xethub.com/ and [create a new repo](https://xethub.com/assets/docs/workflows/clone-and-iterate#create-a-xet-repository) to store your MLflow artifacts.
 
 Or [log in with Xet CLI](log-in-with-xet-cLI) and `xet repo make  xet://<username>/<repo> --private / --public`
 
@@ -81,9 +83,7 @@ with mlflow.start_run():
 
 ### Store artifacts on XetHub and visualize in MLflow UI
 The artifacts will be automatically stored on XetHub under the specified repo and branch. 
-<img width="1728" alt="artifacts_on_xethub" src="https://github.com/xetdata/xethub/assets/22567795/effb880f-841f-4eac-a38a-88fdfd12ee3d">
+<img width="1720" alt="artifact_on_xethub" src="https://github.com/xetdata/Xet-MLflow/assets/22567795/fa5d4806-64b7-4d81-afde-1363175574d7">
 
 And the MLflow server will show the artifacts with UI on the default `http://127.0.0.1:5000` or your own host.
-<img width="1728" alt="artifacts_on_mlflow_ui" src="https://github.com/xetdata/xethub/assets/22567795/b0c8aec8-42a4-4888-ad34-a9146c8d598c">
-
-
+<img width="1728" alt="artifact_on_mlflow_ui" src="https://github.com/xetdata/Xet-MLflow/assets/22567795/1a43b60d-d92d-4d9d-bd7e-9a69bc2026eb">
