@@ -19,6 +19,9 @@ from mlflow.entities import (Experiment, Run, RunInfo, RunData, RunTag, Metric,
 def run():
     # start_mlflow_server_for_xethub()
     with mlflow.start_run() as run:
+        with open("hello.txt", "w") as f:
+            f.write("world!")
+            log_artifact("hello.txt")
         yield run
 
 def get_user_info():
@@ -39,11 +42,6 @@ def get_user_info():
         "token": token,
         "host": host,
     }
-
-# def test_account_login():
-#     user_info = test_user_info()
-    # pyxet.login(user_info['user'], user_info['token'], user_info['email'], user_info['host'])
-#     return user_info['user']
 
 # Expect a test repo whose main branch is empty (only .gitattributes)
 def get_repo():
@@ -122,25 +120,27 @@ def test_mlflowClient_list_artifacts_and_is_dir(run):
     assert(artifacts)
     fs = pyxet.XetFS()
     for artifact in artifacts:
+        artifact_path = posixpath.join(artifact_uri, artifact.path)
         if artifact.is_dir:
-            assert(fs.isdir(artifact.path))
+            assert(fs.isdir(artifact_path))
         else:
-            assert(not fs.isdir(artifact.path))
+            assert(not fs.isdir(artifact_path))
 
 def test_plugin_list_artifacts_and_is_dir(run):
     artifact_uri = run.info.artifact_uri 
-    # repo = XetHubArtifactRepository(artifact_uri)
     repository = get_artifact_repository(artifact_uri)
-    artifacts = repository.list_artifacts(artifact_uri)
+    artifacts = repository.list_artifacts()
     assert(artifacts)
     fs = pyxet.XetFS()
     for artifact in artifacts:
+        artifact_path = posixpath.join(artifact_uri, artifact.path)
         if artifact.is_dir:
-            assert(fs.isdir(artifact.path))
+            assert(fs.isdir(artifact_path))
         else:
-            assert(not fs.isdir(artifact.path))
+            assert(not fs.isdir(artifact_path))
 
 def test_log_artifacts(run):
+    artifact_uri = run.info.artifact_uri
     if not os.path.exists("outputs"):
         os.makedirs("outputs")
 
@@ -158,13 +158,18 @@ def test_log_artifacts(run):
     
 
 def test_log_artifact(run):
+    artifact_uri = run.info.artifact_uri
     if not os.path.exists("outputs"):
         os.makedirs("outputs")
 
     with open("outputs/hello.txt", "w") as f:
         f.write("world!")
 
-    log_artifact("outputs/hello.txt")
+    try:
+        log_artifact("outputs/hello.txt")
+        pass
+    except Exception as e:
+        assert(False), f"Error logging artifacts from {artifact_uri}: {e}"
 
 def test_log_and_load(run):
 

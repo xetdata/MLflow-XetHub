@@ -115,10 +115,12 @@ class XetHubArtifactRepository(ArtifactRepository):
     """
     def list_artifacts(self, path=None):
         artifact_path = self.artifact_uri
-        print("Listing artifacts of %s\n" % artifact_path)
+        
         dest_path = artifact_path
         if path:
             dest_path = posixpath.join(dest_path, path)
+
+        print("Listing artifacts of %s\n" % dest_path)
 
         infos = []
         dest_path = dest_path + "/" if dest_path else ""
@@ -148,7 +150,7 @@ class XetHubArtifactRepository(ArtifactRepository):
 
         else:
             # the path is a single file
-            return []
+            pass
 
         print(f"Listed artifacts: {infos}")
         return sorted(infos, key=lambda f: f.path)
