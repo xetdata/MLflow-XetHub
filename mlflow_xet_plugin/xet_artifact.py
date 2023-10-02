@@ -132,16 +132,18 @@ class XetHubArtifactRepository(ArtifactRepository):
                 entrySize = entry["size"]
                 self._verify_listed_entry_contains_artifact_path_prefix(
                         listed_entry_path="xet://"+entryName, artifact_path=artifact_path)
+                
+                start_path = artifact_path[6:] # remove xet:// from xet://[user]/[repo]/[branch]/[experiment_id]/[run_id]/artifacts
                 if entryType=="file":
                     # is file
                     file_path = entryName
-                    file_rel_path = posixpath.relpath(path=file_path, start=artifact_path)
+                    file_rel_path = posixpath.relpath(path=file_path, start=start_path)
                     file_size = entrySize
                     infos.append(FileInfo(file_rel_path, False, file_size))
                 else:
                     # is dir
                     subdir_path = entryName
-                    subdir_rel_path = posixpath.relpath(path=subdir_path, start=artifact_path)
+                    subdir_rel_path = posixpath.relpath(path=subdir_path, start=start_path)
                     infos.append(FileInfo(subdir_rel_path, True, None))
 
         else:
@@ -190,29 +192,26 @@ class XetHubArtifactRepository(ArtifactRepository):
             mlflow_subpath = "/".join(artifact_path.split("/")[5:])
             dst_path = os.path.abspath("./mlruns/"+mlflow_subpath)
 
-            print(f"Downloading artifacts from {artifact_path} to {dst_path}\n")
             fs = self.xet_client.XetFS()
             if fs.isdir(artifact_path):
+                print(f"Downloading artifacts from {artifact_path} to {dst_path}\n")
                 fs.get(artifact_path, dst_path, recursive=True)
+                print(f"Downloaded artifacts from {artifact_path} to {dst_path}")
             else:
-                # if fs.isdir(dst_path):
-                #     self._download_file(artifact_path, dst_path+artifact_path)
-                # else:
                 self._download_file(artifact_path, dst_path)
 
-            print(f"Downloaded artifacts from {artifact_path} to {dst_path}")
             return dst_path
         
     def download_artifact(self, artifact_path, dst_path=None):
         self._download_file(artifact_path, dst_path)
 
     def _download_file(self, remote_file_path, local_path):
-        print(f"Downloading file from {remote_file_path} to {local_path}\n")
+        print(f"Downloading artifact from {remote_file_path} to {local_path}\n")
         fs = self.xet_client.XetFS()
         # xet_root_path = self.artifact_uri
         xet_full_path = remote_file_path #posixpath.join(xet_root_path, remote_file_path)
         fs.get(xet_full_path, local_path)
-        print(f"Downloaded file from {remote_file_path} to {local_path}\n")
+        print(f"Downloaded artifact from {remote_file_path} to {local_path}\n")
 
     def delete_artifacts(self, artifact_path=None):
         fs = self.xet_client.XetFS()
