@@ -24,16 +24,14 @@ class XetHubArtifactRepository(ArtifactRepository):
             return
         
         self.xet_client = pyxet
-
-
-
+        print(f"Logging artifacts to {self.artifact_uri}")
         # strip trailing slash as posix join will add slash in between paths
         if artifact_uri.endswith("/"):
             self.artifact_uri = artifact_uri[:-1]
 
-        pathComponents = self.artifact_uri.split("/")
-        if len(pathComponents) < 8:
-            raise Exception("Invalid artifact URI format, check if the artifact destination/root passed to your MLflow server is of the form xet://user/repo/branch")
+        # pathComponents = self.artifact_uri.split("/")
+        # if len(pathComponents) < 8:
+        #     raise Exception("Invalid artifact URI format, check if the artifact destination/root passed to your MLflow server is of the form xet://user/repo/branch")
         
         self.is_plugin = True
 
@@ -51,7 +49,7 @@ class XetHubArtifactRepository(ArtifactRepository):
 
         # dest path would be formatted as xet://user/repo/branch/mlflow_experiment_group/mlflow_run_id/artifacts/file
         if artifact_path:
-            dest_path = artifact_path
+            dest_path = posixpath.join(self.artifact_uri, artifact_path)
         else:
             dest_path = posixpath.join(self.artifact_uri, os.path.basename(local_file))
             
@@ -59,7 +57,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         fs = self.xet_client.XetFS()
         commit_msg = "Log artifact %s" % os.path.basename(local_file)
 
-        sys.stdout.write(f"Logging artifact to XetHub from {local_file} to {dest_path}")
+        sys.stdout.write(f"Logging artifact to XetHub from {local_file} to {dest_path}\n")
         with fs.transaction as tr:
             tr.set_commit_message(commit_msg)
             dest_file = fs.open(dest_path, 'wb')
@@ -67,7 +65,7 @@ class XetHubArtifactRepository(ArtifactRepository):
             dest_file.write(src_file)
             dest_file.close()
 
-        sys.stdout.write(f"Logged artifact to XetHub from {local_file} to {dest_path}")
+        sys.stdout.write(f"Logged artifact to XetHub from {local_file} to {dest_path}\n")
 
     """
         Log the files in the specified local directory as artifacts, optionally taking
@@ -78,19 +76,34 @@ class XetHubArtifactRepository(ArtifactRepository):
                               artifacts
     """
     def log_artifacts(self, local_dir, artifact_path=None):
+        # remote, branch, path = self.xet_client.parse_url(self.artifact_uri)
         dest_path = self.artifact_uri
         if artifact_path:
             dest_path = posixpath.join(dest_path, artifact_path)
 
+        fs = self.xet_client.XetFS()
         local_dir = os.path.abspath(local_dir)
-        for (root, _, filenames) in os.walk(local_dir):
-            upload_path = dest_path
-            if root != local_dir:
-                rel_path = os.path.relpath(root, local_dir)
-                rel_path = relative_path_to_artifact_path(rel_path)
-                upload_path = posixpath.join(dest_path, rel_path)
-            for f in filenames:
-                self.log_artifact(os.path.join(root, f), posixpath.join(upload_path, f))
+        commit_msg = "Log artifacts under %s" % os.path.basename(local_dir)
+
+        sys.stdout.write(f"Logging artifacts to XetHub from {local_dir} to {dest_path}\n")
+        with fs.transaction as tr:
+            tr.set_commit_message(commit_msg)
+            for (root, _, filenames) in os.walk(local_dir):
+                upload_path = dest_path
+                if root != local_dir:
+                    rel_path = os.path.relpath(root, local_dir)
+                    rel_path = relative_path_to_artifact_path(rel_path)
+                    upload_path = posixpath.join(dest_path, rel_path)
+                for f in filenames:
+                    # self.log_artifact(os.path.join(root, f), os.path.join(upload_path, f))
+                    local_file = os.path.join(root, f)
+                    file_dest_path = os.path.join(upload_path, f)
+                    dest_file = fs.open(file_dest_path, 'wb')
+                    src_file = open(local_file, 'rb').read()
+                    dest_file.write(src_file)
+                    dest_file.close()
+                
+        sys.stdout.write(f"Logged artifacts to XetHub from {local_dir} to {dest_path}\n")
 
     """
         Return all the artifacts for this run_id directly under path. If path is a file, returns
@@ -102,7 +115,7 @@ class XetHubArtifactRepository(ArtifactRepository):
     """
     def list_artifacts(self, path=None):
         artifact_path = self.artifact_uri
-        print("Listing artifacts of %s" % artifact_path)
+        print("Listing artifacts of %s\n" % artifact_path)
         dest_path = artifact_path
         if path:
             dest_path = posixpath.join(dest_path, path)
@@ -135,6 +148,7 @@ class XetHubArtifactRepository(ArtifactRepository):
             # the path is a single file
             return []
 
+        print(f"Listed artifacts: {infos}")
         return sorted(infos, key=lambda f: f.path)
 
     @staticmethod
@@ -159,6 +173,7 @@ class XetHubArtifactRepository(ArtifactRepository):
 
         :return: Absolute path of the local filesystem location containing the desired artifacts.
         """
+        print(f"dst_path {dst_path}")
         if dst_path:
             return super().download_artifacts(artifact_path, dst_path)
         # NOTE: The artifact_path is expected to be in posix format.
@@ -175,7 +190,7 @@ class XetHubArtifactRepository(ArtifactRepository):
             mlflow_subpath = "/".join(artifact_path.split("/")[5:])
             dst_path = os.path.abspath("./mlruns/"+mlflow_subpath)
 
-            print(f"Downloading artifacts from {artifact_path} to {dst_path}")
+            print(f"Downloading artifacts from {artifact_path} to {dst_path}\n")
             fs = self.xet_client.XetFS()
             if fs.isdir(artifact_path):
                 fs.get(artifact_path, dst_path, recursive=True)
@@ -187,33 +202,36 @@ class XetHubArtifactRepository(ArtifactRepository):
 
             print(f"Downloaded artifacts from {artifact_path} to {dst_path}")
             return dst_path
+        
+    def download_artifact(self, artifact_path, dst_path=None):
+        self._download_file(artifact_path, dst_path)
 
     def _download_file(self, remote_file_path, local_path):
-        print(f"Downloading file from {remote_file_path} to {local_path}")
+        print(f"Downloading file from {remote_file_path} to {local_path}\n")
         fs = self.xet_client.XetFS()
         # xet_root_path = self.artifact_uri
         xet_full_path = remote_file_path #posixpath.join(xet_root_path, remote_file_path)
         fs.get(xet_full_path, local_path)
-        print(f"Downloaded file from {remote_file_path} to {local_path}")
+        print(f"Downloaded file from {remote_file_path} to {local_path}\n")
 
     def delete_artifacts(self, artifact_path=None):
         fs = self.xet_client.XetFS()
         if fs.isdir(artifact_path):
             commit_msg = "Delete artifacts in %s" % os.path.basename(artifact_path)
-            print("Deleting artifacts from %s" % (artifact_path))
+            print("Deleting artifacts from %s\n" % (artifact_path))
             with fs.transaction as tr:
                 tr.set_commit_message(commit_msg)
                 cli = self.xet_client.PyxetCLI()
                 cli.rm(artifact_path)
                 # for entry in self.list_artifacts(artifact_path):
                 #     fs.rm(entry)
-            print("Deleted artifacts from %s" % (artifact_path))
+            print("Deleted artifacts from %s\n" % (artifact_path))
         else:
             commit_msg = "Delete artifact %s" % os.path.basename(artifact_path)
-            print("Deleting artifact %s" % (artifact_path))
+            print("Deleting artifact %s\n" % (artifact_path))
             with fs.transaction as tr:
                 tr.set_commit_message(commit_msg)
                 fs.rm(artifact_path)
-            print("Deleted artifact %s" % (artifact_path))
+            print("Deleted artifact %s\n" % (artifact_path))
 
         
