@@ -24,7 +24,7 @@ class XetHubArtifactRepository(ArtifactRepository):
             return
         
         self.xet_client = pyxet
-        print(f"Logging artifacts to {self.artifact_uri}")
+        print(f"Artifacts located at {self.artifact_uri}")
         # strip trailing slash as posix join will add slash in between paths
         if artifact_uri.endswith("/"):
             self.artifact_uri = artifact_uri[:-1]
@@ -32,9 +32,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         # pathComponents = self.artifact_uri.split("/")
         # if len(pathComponents) < 8:
         #     raise Exception("Invalid artifact URI format, check if the artifact destination/root passed to your MLflow server is of the form xet://user/repo/branch")
-        
-        self.is_plugin = True
-
+    
 
     """
         Log a local file as an artifact, optionally taking an ``artifact_path`` to place it in

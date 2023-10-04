@@ -20,6 +20,9 @@ def run():
     # start_mlflow_server_for_xethub()
     current_run = mlflow.active_run()
     if current_run is not None:
+        with open("hello.txt", "w") as f:
+            f.write("world!")
+            log_artifact("hello.txt")
         yield current_run
     else:
         with mlflow.start_run() as run:
@@ -31,20 +34,13 @@ def run():
 def get_user_info():
     user = os.getenv('XET_TEST_USER')
     assert user is not None
-    email = os.getenv('XET_TEST_EMAIL')
-    assert email is not None
-    token = os.getenv('XET_TEST_TOKEN')
-    assert token is not None
 
-    host = os.getenv('XET_ENDPOINT')
-    if host is None:
-        host = 'https://hub.xetsvc.com/'
+    # host = os.getenv('XET_ENDPOINT')
+    # if host is None:
+    #     host = 'https://hub.xetsvc.com/'
 
     return {
         "user": user,
-        "email": email,
-        "token": token,
-        "host": host,
     }
 
 # Expect a test repo whose main branch is empty (only .gitattributes)
