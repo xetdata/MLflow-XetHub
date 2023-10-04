@@ -18,11 +18,15 @@ from mlflow.entities import (Experiment, Run, RunInfo, RunData, RunTag, Metric,
 @pytest.fixture # run before each test function to which it is applied
 def run():
     # start_mlflow_server_for_xethub()
-    with mlflow.start_run() as run:
-        with open("hello.txt", "w") as f:
-            f.write("world!")
-            log_artifact("hello.txt")
-        yield run
+    current_run = mlflow.active_run()
+    if current_run is not None:
+        yield current_run
+    else:
+        with mlflow.start_run() as run:
+            with open("hello.txt", "w") as f:
+                f.write("world!")
+                log_artifact("hello.txt")
+            yield run
 
 def get_user_info():
     user = os.getenv('XET_TEST_USER')
@@ -105,13 +109,6 @@ def test_get_artifact_uri(run):
     assert(mlflow.active_run())
     assert(get_artifact_uri()==run.info.artifact_uri)
 
-# def test_artifact_is_dir(run):
-#     artifact_uri = run.info.artifact_uri 
-    
-#     client = MlflowClient()
-#     artifacts = client.is_dir(artifact_uri)
-#     assert(artifacts)
-
 def test_mlflowClient_list_artifacts_and_is_dir(run):
     artifact_uri = run.info.artifact_uri 
     
@@ -171,37 +168,90 @@ def test_log_artifact(run):
     except Exception as e:
         assert(False), f"Error logging artifacts from {artifact_uri}: {e}"
 
-def test_log_and_load(run):
+def test_log_artifact_idempotent(run):
+    test_log_artifact(run)
+    test_log_artifact(run)
 
+def test_log_artifacts_idempotent(run):
+    test_log_artifacts(run)
+    test_log_artifacts(run)
+
+def test_log_and_load_text(run):
     artifact_uri = run.info.artifact_uri
-    # log and load text
-    text_uri = "hello.txt"
-    mlflow.log_text("hello", text_uri)
-    print("run artifact uri: ", artifact_uri)
-    full_path = artifact_uri + text_uri
-    print("test loading text from ", full_path)
-    file_content = mlflow.artifacts.load_text(full_path)
+    text_file = "hello.txt"
+    mlflow.log_text("hello", text_file)
+    file_content = mlflow.artifacts.load_text(text_file)
     assert(file_content)
 
-    # log and load image
+def test_log_and_load_image(run):
+    artifact_uri = run.info.artifact_uri
     from PIL import Image
 
     image = Image.new("RGB", (100, 100))
-    mlflow.log_image(image, "image.png")
-    image = mlflow.artifacts.load_image(artifact_uri + "/image.png")
+    image_file = "image.png"
+    mlflow.log_image(image, image_file)
+    full_path = posixpath.join(artifact_uri, image_file)
+    print(f'loading image from {full_path}')
+    image = mlflow.artifacts.load_image(full_path)
     assert(image)
 
-    # log and load dict
-    mlflow.log_dict({"mlflow-version": "0.28", "n_cores": "10"}, "config.json")
-    config_json = mlflow.artifacts.load_dict(artifact_uri + "/config.json")
+def test_log_and_load_dict(run):
+    artifact_uri = run.info.artifact_uri
+    json_file = "config.json"
+    mlflow.log_dict({"mlflow-version": "0.28", "n_cores": "10"}, json_file)
+    full_path = posixpath.join(artifact_uri, json_file)
+    config_json = mlflow.artifacts.load_dict(full_path)
     assert(config_json)
 
-def test_download_artifacts(run):
+def test_log_and_load_table():
+    # log and load table
+    table_dict = {
+        "inputs": ["What is MLflow?", "What is Databricks?"],
+        "outputs": ["MLflow is ...", "Databricks is ..."],
+        "toxicity": [0, "0.0"],
+    }
+    json_file = "table.json"
+    mlflow.log_table(data=table_dict, artifact_file=json_file)
+    config_json = mlflow.load_table(json_file)
+    assert(config_json is not None)
+
+def test_log_figure(run):
+    artifact_uri = run.info.artifact_uri
+    import matplotlib.pyplot as plt
+    figure_file = "figure.png"
+    full_path = posixpath.join(artifact_uri, figure_file)
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [2, 3])
+    try:
+        mlflow.log_figure(fig, figure_file)
+        try:
+            fs = pyxet.XetFS()
+            fs.info(full_path)
+        except:
+            assert(False)
+    except:
+        assert(False)
+
+
+def test_client_download_artifacts(run):
     client = MlflowClient()
     artifact_uri = run.info.artifact_uri
     run_id = run.info.run_id
     print(client.download_artifacts(run_id, artifact_uri, "./"))
     assert(client.download_artifacts(run_id, artifact_uri, "./"))
+
+def test_client_download_artifacts_idempotent(run):
+    test_client_download_artifacts(run)
+    test_client_download_artifacts(run)
+
+def test_artifact_download_artifacts(run):
+    artifact_uri = run.info.artifact_uri
+    print(mlflow.artifacts.download_artifacts(artifact_uri))
+    assert(mlflow.artifacts.download_artifacts(artifact_uri))
+
+def test_artifact_download_artifacts_idempotent(run):
+    test_artifact_download_artifacts(run)
+    test_artifact_download_artifacts(run)
 
 def test_delete_artifacts(run):
     artifact_uri = run.info.artifact_uri
@@ -211,7 +261,30 @@ def test_delete_artifacts(run):
         pass
     except Exception as e:
         assert(False), f"Error deleting artifacts from {artifact_uri}: {e}"
+
+def test_delete_artifacts_idempotent(run):
+    test_delete_artifacts(run)
+    test_delete_artifacts(run)
     
+@pytest.fixture
+def create_nested_dirs():
+    # Set up code for the fixture
+    fs = pyxet.XetFS()
+    user = os.getenv('XET_TEST_USER')
+    repo = os.getenv('XET_TEST_REPO')
+    branch = "main"
+    path = "xet://" + posixpath.join(user, repo, branch, "12345/model/modelfile")
+    try:
+        fs.info(path)
+    except:
+        with fs.transaction as tr:
+            commit_msg = "create test dir"
+            tr.set_commit_message(commit_msg)
+            file = fs.open(path, 'w')
+            file.write('')
+            file.close()
+    yield
+    # Teardown code for the fixture (if needed)
 
 @pytest.mark.parametrize("base_uri, download_arg, list_return_val", [
     ('12345/model', '', ['modelfile']),
@@ -221,7 +294,7 @@ def test_delete_artifacts(run):
     ('', '12345/model', ['12345/model/modelfile']),
     ('', '12345/model', ['12345/model', '12345/model/modelfile']),
 ])
-def test_download_artifacts_does_not_infinitely_loop(base_uri, download_arg, list_return_val):
+def test_download_artifacts_does_not_infinitely_loop(base_uri, download_arg, list_return_val, create_nested_dirs):
     base_uri = repo_uri + base_uri
     def list_artifacts(path):
         fullpath = posixpath.join(base_uri, path)

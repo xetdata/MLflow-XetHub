@@ -186,9 +186,8 @@ class XetHubArtifactRepository(ArtifactRepository):
         # if not os.path.exists(local_artifact_path):
         #     raise OSError(f"No such file or directory: '{local_artifact_path}'")        
         else:
-            # if not artifact_path:
+            rel_artifact_path = artifact_path
             artifact_path = posixpath.join(self.artifact_uri, artifact_path)
-                # artifact_path = self.artifact_uri
 
             # artifact_path is of the format xet://user/repo/branch/mlflow_experiment_group/mlflow_run_id/artifacts/file
             mlflow_subpath = "/".join(artifact_path.split("/")[5:])
@@ -200,18 +199,15 @@ class XetHubArtifactRepository(ArtifactRepository):
                 fs.get(artifact_path, dst_path, recursive=True)
                 print(f"Downloaded artifacts from {artifact_path} to {dst_path}")
             else:
-                self._download_file(artifact_path, dst_path)
+                self._download_file(rel_artifact_path, dst_path)
 
             return dst_path
-        
-    def download_artifact(self, artifact_path, dst_path=None):
-        self._download_file(artifact_path, dst_path)
 
     def _download_file(self, remote_file_path, local_path):
         print(f"Downloading artifact from {remote_file_path} to {local_path}\n")
         fs = self.xet_client.XetFS()
-        # xet_root_path = self.artifact_uri
-        xet_full_path = remote_file_path #posixpath.join(xet_root_path, remote_file_path)
+        xet_root_path = self.artifact_uri
+        xet_full_path = posixpath.join(xet_root_path, remote_file_path)
         fs.get(xet_full_path, local_path)
         print(f"Downloaded artifact from {remote_file_path} to {local_path}\n")
 
