@@ -235,10 +235,10 @@ def test_log_figure(run):
 
 def test_client_download_artifacts(run):
     client = MlflowClient()
-    artifact_uri = run.info.artifact_uri
     run_id = run.info.run_id
-    print(client.download_artifacts(run_id, artifact_uri, "./"))
-    assert(client.download_artifacts(run_id, artifact_uri, "./"))
+    print(client.download_artifacts(run_id, "", "./"))
+    assert(client.download_artifacts(run_id, "", "./"))
+    assert(client.download_artifacts(run_id, "hello.txt", "./"))
 
 def test_client_download_artifacts_idempotent(run):
     test_client_download_artifacts(run)

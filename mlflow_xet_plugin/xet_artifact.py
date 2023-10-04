@@ -204,12 +204,12 @@ class XetHubArtifactRepository(ArtifactRepository):
             return dst_path
 
     def _download_file(self, remote_file_path, local_path):
-        print(f"Downloading artifact from {remote_file_path} to {local_path}\n")
         fs = self.xet_client.XetFS()
         xet_root_path = self.artifact_uri
         xet_full_path = posixpath.join(xet_root_path, remote_file_path)
+        print(f"Downloading artifact from {xet_full_path} to {local_path}\n")
         fs.get(xet_full_path, local_path)
-        print(f"Downloaded artifact from {remote_file_path} to {local_path}\n")
+        print(f"Downloaded artifact from {xet_full_path} to {local_path}\n")
 
     def delete_artifacts(self, artifact_path=None):
         fs = self.xet_client.XetFS()
