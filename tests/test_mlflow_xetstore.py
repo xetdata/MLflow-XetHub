@@ -10,7 +10,7 @@ import pytest
 from mlflow.utils.file_utils import TempDir
 from mlflow.store.artifact.artifact_repository_registry import get_artifact_repository
 from mlflow_xet_plugin.xet_artifact import XetHubArtifactRepository
-from mlflow import log_artifact, log_artifacts, get_artifact_uri, create_experiment, MlflowClient
+from mlflow import log_artifact, log_artifacts, get_artifact_uri, create_experiment, set_experiment, MlflowClient, pyfunc
 
 from mlflow.entities import (Experiment, Run, RunInfo, RunData, RunTag, Metric,
                              Param, ExperimentTag, RunStatus, LifecycleStage, FileInfo)
@@ -100,6 +100,26 @@ def start_mlflow_server_for_xethub():
     except subprocess.CalledProcessError as e:
         # Handle any errors or exceptions
         print("Error:", e)
+
+        
+
+
+class Mod(mlflow.pyfunc.PythonModel):
+    def predict(self, ctx, inp, params=None):
+        return 7
+
+# testing the code example to be shown on MLflow plugins doc
+def test_pyfunc_log_model(run):
+    artifact_uri = run.info.artifact_uri 
+    exp_name = "myexp"
+    create_experiment(exp_name, artifact_location=artifact_uri)
+    set_experiment(exp_name)
+    try:
+        pyfunc.log_model("model_test", python_model=Mod())
+        pass
+    except Exception as e:
+        assert(False), f"Error logging model to {artifact_uri}: {e}"
+    
 
 def test_get_artifact_uri(run):
     assert(mlflow.active_run())

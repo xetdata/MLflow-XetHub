@@ -1,14 +1,14 @@
-# Xet-MLflow
+# MLflow-XetHub
 This plugin integrates XetHub with MLflow so that you can use existing MLflow code to track experiments but store artifacts to XetHub.
 
 ## Install plugin
 Install from PyPI for the plugin's published version
-`pip install mlflow-xetstore`
+`pip install mlflow[xethub]`
 
 Or clone this repo and install locally for the latest code 
 ```bash
-git clone https://github.com/xetdata/Xet-MLflow.git
-cd Xet-MLflow
+git clone https://github.com/xetdata/MLflow-XetHub.git
+cd MLflow-XetHub
 pip install .
 ```
 
@@ -18,7 +18,7 @@ If you haven't already, [create an XetHub account](https://xethub.com/assets/doc
 The plugin uses [PyXet](https://github.com/xetdata/pyxet) to access XetHub, so you need to authenticate with XetHub in one of the following two ways.
 ### Option 1: [Log in with Xet CLI](https://xethub.com/assets/docs/getting-started/installation#configure-authentication)
 ```
-xet login --email/-e <email address associated with account> --user/-u <user name> --password <personal access token>
+xet login --email <email address associated with account> --user <user name> --password <personal access token>
 ```
 
 ### Option 2: [Export xet credentials as environment variables](https://pyxet.readthedocs.io/en/latest/#environment-variable)
