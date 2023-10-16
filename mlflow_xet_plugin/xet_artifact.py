@@ -93,9 +93,8 @@ class XetHubArtifactRepository(ArtifactRepository):
                     rel_path = relative_path_to_artifact_path(rel_path)
                     upload_path = posixpath.join(dest_path, rel_path)
                 for f in filenames:
-                    # self.log_artifact(os.path.join(root, f), os.path.join(upload_path, f))
-                    local_file = os.path.join(root, f)
-                    file_dest_path = os.path.join(upload_path, f)
+                    local_file = posixpath.join(root, f)
+                    file_dest_path = posixpath.join(upload_path, f)
                     dest_file = fs.open(file_dest_path, 'wb')
                     src_file = open(local_file, 'rb').read()
                     dest_file.write(src_file)
@@ -178,11 +177,7 @@ class XetHubArtifactRepository(ArtifactRepository):
         print(f"dst_path {dst_path}")
         if dst_path:
             return super().download_artifacts(artifact_path, dst_path)
-        # NOTE: The artifact_path is expected to be in posix format.
-        # Posix paths work fine on windows but just in case we normalize it here.
-        # local_artifact_path = os.path.join(self.artifact_dir, os.path.normpath(artifact_path))
-        # if not os.path.exists(local_artifact_path):
-        #     raise OSError(f"No such file or directory: '{local_artifact_path}'")        
+        # NOTE: The artifact_path is expected to be in posix format.        
         else:
             rel_artifact_path = artifact_path
             artifact_path = posixpath.join(self.artifact_uri, artifact_path)
