@@ -3,7 +3,7 @@ This plugin integrates XetHub with MLflow so that you can use existing MLflow co
 
 ## Install plugin
 Install from PyPI for the plugin's published version
-`pip install mlflow[xethub]`
+`pip install mlflow-xethub`
 
 Or clone this repo and install locally for the latest code 
 ```bash
