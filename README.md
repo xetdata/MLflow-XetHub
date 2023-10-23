@@ -87,3 +87,6 @@ The artifacts will be automatically stored on XetHub under the specified repo an
 
 And the MLflow server will show the artifacts with UI on the default `http://127.0.0.1:5000` or your own host.
 <img width="1728" alt="artifact_on_mlflow_ui" src="https://github.com/xetdata/Xet-MLflow/assets/22567795/1a43b60d-d92d-4d9d-bd7e-9a69bc2026eb">
+
+## [Potential improvements](https://github.com/xetdata/MLflow-XetHub/issues/1)
+
